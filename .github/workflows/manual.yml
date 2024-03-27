@@ -1,44 +1,52 @@
-name: Manual
-
-on:
-  workflow_dispatch:
-
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.nickname }}
+    runs-on: self-hosted
+    steps:
+    - continue-on-error: true
+      uses: actions/checkout@v3
+    - continue-on-error: true
+      uses: graalvm/setup-graalvm@v1
+      with:
+        components: native-image
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        java-version: 17
+        native-image-musl: ${{ matrix.musl }}
+        version: ${{ matrix.graal }}
+    - continue-on-error: true
+      run: './gradlew build nativeCompile -PspringShellSampleMusl=${{ matrix.musl
+        }} -x test
+
+        '
+    - continue-on-error: true
+      uses: actions/upload-artifact@v3
+      with:
+        name: spring-shell-samples-${{ matrix.nickname }}
+        path: 'spring-shell-samples/build/libs/*.jar
+
+          spring-shell-samples/build/native/nativeCompile/spring-shell-samples
+
+          spring-shell-samples/build/native/nativeCompile/spring-shell-samples.exe
+
+          '
+        retention-days: 1
     strategy:
       fail-fast: false
       matrix:
         include:
-          - nickname: win
-            os: windows-latest
-            graal: 22.3.0
-            musl: false
-          - nickname: macos
-            os: macos-latest
-            graal: 22.3.0
-            musl: false
-          - nickname: linux
-            os: ubuntu-latest
-            graal: 22.3.0
-            musl: true
-    name: Build ${{ matrix.nickname }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: graalvm/setup-graalvm@v1
-        with:
-          version: ${{ matrix.graal }}
-          java-version: 17
-          components: native-image
-          native-image-musl: ${{ matrix.musl }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          ./gradlew build nativeCompile -PspringShellSampleMusl=${{ matrix.musl }} -x test
-      - uses: actions/upload-artifact@v3
-        with:
-          name: spring-shell-samples-${{ matrix.nickname }}
-          retention-days: 1
-          path: |
-            spring-shell-samples/build/libs/*.jar
-            spring-shell-samples/build/native/nativeCompile/spring-shell-samples
-            spring-shell-samples/build/native/nativeCompile/spring-shell-samples.exe
+        - graal: 22.3.0
+          musl: false
+          nickname: win
+          os: windows-latest
+        - graal: 22.3.0
+          musl: false
+          nickname: macos
+          os: macos-latest
+        - graal: 22.3.0
+          musl: true
+          nickname: linux
+          os: ubuntu-latest
+name: Manual
+on:
+  repository_dispatch:
+    types: trigger-ga___manual.yml

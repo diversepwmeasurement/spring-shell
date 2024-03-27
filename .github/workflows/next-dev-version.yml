@@ -1,22 +1,31 @@
-name: Next Dev Version
-
-on:
-  workflow_dispatch:
-
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v3
-    - name: Change Version
-      run: |
-        snapshotVersion=$( awk -F '=' '$1 == "version" { print $2 }' gradle.properties )
+    - continue-on-error: true
+      uses: actions/checkout@v3
+    - continue-on-error: true
+      name: Change Version
+      run: 'snapshotVersion=$( awk -F ''='' ''$1 == "version" { print $2 }'' gradle.properties
+        )
+
         plainVersion=${snapshotVersion%-SNAPSHOT}
-        nextPlainVersion=$( echo $plainVersion | awk -F. '/[0-9]+\./{$NF++;print}' OFS=. )
+
+        nextPlainVersion=$( echo $plainVersion | awk -F. ''/[0-9]+\./{$NF++;print}''
+        OFS=. )
+
         nextVersion=${nextPlainVersion}-SNAPSHOT
+
         sed -i "s/version=$snapshotVersion/version=$nextVersion/" gradle.properties
-    - name: Commit Next Dev Changes
+
+        '
+    - continue-on-error: true
+      name: Commit Next Dev Changes
       uses: jvalkeal/build-zoo-handler@v0.0.4
       with:
         commit-changes-branch: main
         commit-changes-message: Next development version
+name: Next Dev Version
+on:
+  repository_dispatch:
+    types: trigger-ga___next-dev-version.yml

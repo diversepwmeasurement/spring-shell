@@ -1,27 +1,28 @@
-name: Schedule e2e
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * 1,3,5'
-
-permissions:
-  actions: write
-
 jobs:
   dispatch_e2e:
-    name: Dispatch e2e
     if: github.repository_owner == 'spring-projects'
-    strategy:
-      matrix:
-        branch: [ main, 3.2.x, 3.1.x ]
-    runs-on: ubuntu-latest
+    name: Dispatch e2e
+    runs-on: self-hosted
     steps:
-    - name: Checkout
+    - continue-on-error: true
+      name: Checkout
       uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    - name: Dispatch
+    - continue-on-error: true
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      name: Dispatch
       run: gh workflow run e2e.yml -r ${{ matrix.branch }}
+    strategy:
+      matrix:
+        branch:
+        - main
+        - 3.2.x
+        - 3.1.x
+name: Schedule e2e
+on:
+  repository_dispatch:
+    types: trigger-ga___schedule-e2e.yml
+permissions:
+  actions: write

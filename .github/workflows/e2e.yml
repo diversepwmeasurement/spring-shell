@@ -1,119 +1,147 @@
-name: e2e
-run-name: ${{ format('{0} ({1})', github.workflow, github.ref_name) }}
-
-on:
-  workflow_dispatch:
-
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - nickname: win
-            os: windows-2022
-            graal: latest
-            musl: false
-          - nickname: macos
-            os: macos-12
-            graal: latest
-            musl: false
-          - nickname: linux
-            os: ubuntu-22.04
-            graal: latest
-            musl: true
     name: Compile ${{ matrix.nickname }}
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v3
-      - uses: graalvm/setup-graalvm@v1
-        with:
-          version: ${{ matrix.graal }}
-          java-version: 21
-          components: native-image
-          native-image-musl: ${{ matrix.musl }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-      - run: |
-          ./gradlew clean build nativeCompile -PspringShellSampleMusl=${{ matrix.musl }} -PspringShellSampleNative=true -PspringShellSampleE2E=true
-        timeout-minutes: 30
-      - uses: actions/upload-artifact@v3
-        with:
-          name: spring-shell-samples-${{ matrix.nickname }}
-          retention-days: 1
-          path: |
-            spring-shell-samples/spring-shell-sample-commands/build/libs/*.jar
-            spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands
-            spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands.exe
-            spring-shell-samples/spring-shell-sample-e2e/build/libs/*.jar
-            spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e
-            spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e.exe
-      - name: Upload Build Logs
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: buildlogs-${{ matrix.nickname }}
-          path: |
-            */build/reports
-            */*/build/reports
-  e2e:
-    runs-on: ${{ matrix.os }}
-    needs: build
+    - continue-on-error: true
+      uses: actions/checkout@v3
+    - continue-on-error: true
+      uses: graalvm/setup-graalvm@v1
+      with:
+        components: native-image
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        java-version: 21
+        native-image-musl: ${{ matrix.musl }}
+        version: ${{ matrix.graal }}
+    - continue-on-error: true
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+    - continue-on-error: true
+      run: './gradlew clean build nativeCompile -PspringShellSampleMusl=${{ matrix.musl
+        }} -PspringShellSampleNative=true -PspringShellSampleE2E=true
+
+        '
+      timeout-minutes: 30
+    - continue-on-error: true
+      uses: actions/upload-artifact@v3
+      with:
+        name: spring-shell-samples-${{ matrix.nickname }}
+        path: 'spring-shell-samples/spring-shell-sample-commands/build/libs/*.jar
+
+          spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands
+
+          spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands.exe
+
+          spring-shell-samples/spring-shell-sample-e2e/build/libs/*.jar
+
+          spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e
+
+          spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e.exe
+
+          '
+        retention-days: 1
+    - continue-on-error: true
+      if: ${{ failure() }}
+      name: Upload Build Logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: buildlogs-${{ matrix.nickname }}
+        path: '*/build/reports
+
+          */*/build/reports
+
+          '
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-2022
-            nickname: win
-          # - os: windows-2019
-          #   nickname: win
-          - os: macos-12
-            nickname: macos
-          - os: macos-11
-            nickname: macos
-          - os: ubuntu-22.04
-            nickname: linux
-          - os: ubuntu-20.04
-            nickname: linux
+        - graal: latest
+          musl: false
+          nickname: win
+          os: windows-2022
+        - graal: latest
+          musl: false
+          nickname: macos
+          os: macos-12
+        - graal: latest
+          musl: true
+          nickname: linux
+          os: ubuntu-22.04
+  e2e:
     name: E2E ${{ matrix.os }}
+    needs: build
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
-        with:
-          distribution: adopt
-          java-version: 21
-          cache: gradle
-      - name: Use Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-      - name: compile e2e module
-        working-directory: e2e/spring-shell-e2e
-        run: |
-          npm install
-          npm run build
-      - uses: actions/download-artifact@v3
-        with:
-          name: spring-shell-samples-${{ matrix.nickname }}
-          path: spring-shell-samples
-      - name: fix artifacts
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands
-          chmod +x spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e
-      - name: run e2e tests
-        working-directory: e2e/spring-shell-e2e-tests
-        run: |
-          npm install
-          npm test
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action/composite@v2
-        if: always()
-        with:
-          files: e2e/spring-shell-e2e-tests/junit.xml
+    - continue-on-error: true
+      uses: actions/checkout@v3
+    - continue-on-error: true
+      uses: actions/setup-java@v3
+      with:
+        cache: gradle
+        distribution: adopt
+        java-version: 21
+    - continue-on-error: true
+      name: Use Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - continue-on-error: true
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+    - continue-on-error: true
+      name: compile e2e module
+      run: 'npm install
+
+        npm run build
+
+        '
+      working-directory: e2e/spring-shell-e2e
+    - continue-on-error: true
+      uses: actions/download-artifact@v3
+      with:
+        name: spring-shell-samples-${{ matrix.nickname }}
+        path: spring-shell-samples
+    - continue-on-error: true
+      if: runner.os != 'Windows'
+      name: fix artifacts
+      run: 'chmod +x spring-shell-samples/spring-shell-sample-commands/build/native/nativeCompile/spring-shell-sample-commands
+
+        chmod +x spring-shell-samples/spring-shell-sample-e2e/build/native/nativeCompile/spring-shell-sample-e2e
+
+        '
+      shell: bash
+    - continue-on-error: true
+      name: run e2e tests
+      run: 'npm install
+
+        npm test
+
+        '
+      working-directory: e2e/spring-shell-e2e-tests
+    - continue-on-error: true
+      if: always()
+      name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action/composite@v2
+      with:
+        files: e2e/spring-shell-e2e-tests/junit.xml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - nickname: win
+          os: windows-2022
+        - nickname: macos
+          os: macos-12
+        - nickname: macos
+          os: macos-11
+        - nickname: linux
+          os: ubuntu-22.04
+        - nickname: linux
+          os: ubuntu-20.04
+name: e2e
+on:
+  repository_dispatch:
+    types: trigger-ga___e2e.yml
+run-name: ${{ format('{0} ({1})', github.workflow, github.ref_name) }}
